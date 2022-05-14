@@ -1,0 +1,7 @@
+[
+  {
+    "java": 17,
+    "os": "ubuntu-latest",
+    "run": "always"
+  }
+]

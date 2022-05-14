@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "firstenchant",
+  "version": "${version}",
+  "accessWidener": "firstenchant.accesswidener",
+  "name": "First Enchant",
+  "description": "Helper mod for dumping a list of first enchants",
+  "authors": [
+    "logwet"
+  ],
+  "contact": {
+    "homepage": "https://github.com/logwet",
+    "sources": "https://github.com/logwet/firstenchant"
+  },
+  "license": "GPL-3.0",
+  "icon": "assets/firstenchant/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "me.logwet.sar.firstenchant.FirstEnchant"
+    ],
+    "client": [
+    ],
+    "server": [
+    ]
+  },
+  "mixins": [
+    "firstenchant.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.7.4",
+    "minecraft": ">=1.16"
+  }
+}
