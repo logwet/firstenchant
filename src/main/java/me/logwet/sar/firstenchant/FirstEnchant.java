@@ -29,6 +29,7 @@ public class FirstEnchant implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        EnchantmentSimulator.genData();
         log(Level.INFO, "Main class initialized!");
     }
 }
