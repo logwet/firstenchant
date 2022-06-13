@@ -3,6 +3,7 @@ package me.logwet.sar.firstenchant;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -29,7 +30,8 @@ public class FirstEnchant implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        EnchantmentSimulator.genData();
         log(Level.INFO, "Main class initialized!");
+        EnchantmentSimulator.genData();
+        Minecraft.getInstance().stop();
     }
 }

@@ -2,6 +2,7 @@ package me.logwet.sar.firstenchant;
 
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -12,22 +13,64 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
-import jxl.Workbook;
-import jxl.write.Label;
-import jxl.write.Number;
-import jxl.write.WritableSheet;
-import jxl.write.WritableWorkbook;
-import jxl.write.WriteException;
+import net.minecraft.SharedConstants;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.registry.Registry;
+import org.apache.logging.log4j.Level;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
+import org.apache.poi.xssf.usermodel.IndexedColorMap;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jetbrains.annotations.NotNull;
 
 public class EnchantmentSimulator {
     private static final int BASE_ENCHANTMENT_SEED = 0;
+
+    private static final Workbook WORKBOOK;
+    private static final IndexedColorMap INDEXED_COLOR_MAP;
+    private static final Font DEFAULT_FONT;
+    private static final Font BOLD_FONT;
+    private static final CellStyle DEFAULT_STYLE;
+    private static final CellStyle BOLD_STYLE;
+
+    private static final Map<Integer, CellStyle> COLOUR_STYLE_MAP;
+
+    static {
+        WORKBOOK = new XSSFWorkbook();
+
+        INDEXED_COLOR_MAP = new DefaultIndexedColorMap();
+
+        DEFAULT_FONT = WORKBOOK.createFont();
+        DEFAULT_FONT.setFontName("Arial");
+        DEFAULT_FONT.setFontHeightInPoints((short) 10);
+
+        BOLD_FONT = WORKBOOK.createFont();
+        BOLD_FONT.setFontName("Arial");
+        BOLD_FONT.setFontHeightInPoints((short) 10);
+        BOLD_FONT.setBold(true);
+
+        DEFAULT_STYLE = WORKBOOK.createCellStyle();
+        DEFAULT_STYLE.setFont(DEFAULT_FONT);
+
+        BOLD_STYLE = WORKBOOK.createCellStyle();
+        BOLD_STYLE.setFont(BOLD_FONT);
+
+        COLOUR_STYLE_MAP = new HashMap<>();
+    }
 
     private EnchantmentSimulator() {}
 
@@ -63,8 +106,7 @@ public class EnchantmentSimulator {
 
             for (int id = 0; id < 3; ++id) {
                 costs[id] =
-                        EnchantmentHelper.calculateRequiredExperienceLevel(
-                                random, id, bookshelves, itemStack);
+                        EnchantmentHelper.getEnchantmentCost(random, id, bookshelves, itemStack);
                 if (costs[id] < id + 1) {
                     costs[id] = 0;
                 }
@@ -99,7 +141,7 @@ public class EnchantmentSimulator {
                 new HashMap<>();
 
         Registry.ITEM.stream()
-                .map(Item::getStackForRender)
+                .map(Item::getDefaultInstance)
                 .filter(ItemStack::isEnchantable)
                 .map(EnchantmentSimulator::simulateForItemStack)
                 .forEachOrdered(
@@ -137,31 +179,72 @@ public class EnchantmentSimulator {
         return data;
     }
 
-    private static void writeCell(WritableSheet sheet, int x, int y, String content) {
-        Label label = new Label(x, y, content);
-        try {
-            sheet.addCell(label);
-        } catch (WriteException e) {
-            e.printStackTrace();
-        }
+    private static boolean getContrastColour(int r, int g, int b) {
+        return Mth.sqrt(r * r * 0.241 + g * g * 0.691 + b * b * 0.068) > 130;
     }
 
-    private static void writeCell(WritableSheet sheet, int x, int y, int content) {
-        Number number = new Number(x, y, content);
-        try {
-            sheet.addCell(number);
-        } catch (WriteException e) {
-            e.printStackTrace();
+    private static CellStyle getStyleByColour(Integer hex) {
+        XSSFCellStyle cellStyle = (XSSFCellStyle) COLOUR_STYLE_MAP.get(hex);
+
+        if (Objects.isNull(cellStyle)) {
+            int r = ((hex & 0xFF0000) >> 16);
+            int g = ((hex & 0xFF00) >> 8);
+            int b = (hex & 0xFF);
+
+            XSSFFont font = (XSSFFont) WORKBOOK.createFont();
+            font.setFontName("Arial");
+            font.setFontHeightInPoints((short) 10);
+            font.setColor(
+                    getContrastColour(r, g, b)
+                            ? IndexedColors.BLACK.getIndex()
+                            : IndexedColors.WHITE.getIndex());
+
+            cellStyle = (XSSFCellStyle) WORKBOOK.createCellStyle();
+            cellStyle.setFont(font);
+            cellStyle.setFillForegroundColor(
+                    new XSSFColor(new byte[] {(byte) r, (byte) g, (byte) b}, INDEXED_COLOR_MAP));
+            cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            COLOUR_STYLE_MAP.put(hex, cellStyle);
         }
+
+        return cellStyle;
+    }
+
+    private static void writeCell(Sheet sheet, int x, int y, String content) {
+        writeCell(sheet, x, y, content, DEFAULT_STYLE);
+    }
+
+    private static void writeCell(Sheet sheet, int x, int y, String content, int hex) {
+        CellStyle cellStyle = getStyleByColour(hex);
+        writeCell(sheet, x, y, content, cellStyle);
+    }
+
+    private static void writeCell(Sheet sheet, int x, int y, String content, CellStyle cellStyle) {
+        Row row = sheet.getRow(y);
+        if (Objects.isNull(row)) {
+            row = sheet.createRow(y);
+        }
+
+        Cell cell = row.getCell(x);
+        if (Objects.isNull(cell)) {
+            cell = row.createCell(x);
+        }
+
+        cell.setCellValue(content);
+        cell.setCellStyle(cellStyle);
     }
 
     private static void writeSheet(
-            WritableSheet sheet,
+            Sheet sheet,
             String name,
             Map<SimpleEnchantmentInstance, List<EnchantmentOutcome>> data) {
-        sheet.setColumnView(0, 20);
+        sheet.setColumnWidth(0, 20 * 256);
 
-        int y = 0;
+        writeCell(sheet, 0, 0, "Enchantment:", BOLD_STYLE);
+        writeCell(sheet, 1, 0, "Shelves, Levels, Index", BOLD_STYLE);
+
+        int y = 1;
 
         List<SimpleEnchantmentInstance> keySet = Lists.newArrayList(data.keySet());
         Collections.sort(keySet);
@@ -176,6 +259,11 @@ public class EnchantmentSimulator {
 
             int x = 1;
             for (EnchantmentOutcome enchantmentOutcome : enchantmentOutcomes) {
+                int r = (int) Math.round(255 * (enchantmentOutcome.cost - 2) / 28D) << 16;
+                int g = (int) Math.round(255 * enchantmentOutcome.bookshelves / 15D) << 8;
+                int b = (int) Math.round(255 * enchantmentOutcome.id / 2D);
+                int hex = r + g + b;
+
                 writeCell(
                         sheet,
                         x,
@@ -184,7 +272,8 @@ public class EnchantmentSimulator {
                                 + ", "
                                 + enchantmentOutcome.cost
                                 + ", "
-                                + (enchantmentOutcome.id + 1));
+                                + (enchantmentOutcome.id + 1),
+                        getStyleByColour(hex));
                 x++;
             }
 
@@ -196,7 +285,11 @@ public class EnchantmentSimulator {
         Map<String, Map<SimpleEnchantmentInstance, List<EnchantmentOutcome>>> data =
                 simulateOnAllItems();
 
-        File file = new File(Paths.get("").toAbsolutePath().toFile(), "data.xls").getAbsoluteFile();
+        File directory = new File(Paths.get("").toAbsolutePath().toFile(), "enchantments");
+        directory.mkdirs();
+        File file =
+                new File(directory, SharedConstants.getCurrentVersion().getName() + ".xlsx")
+                        .getAbsoluteFile();
         if (file.exists()) {
             file.delete();
         }
@@ -205,18 +298,19 @@ public class EnchantmentSimulator {
         Collections.sort(keySet);
 
         try {
-            WritableWorkbook workbook = Workbook.createWorkbook(file);
 
-            int i = 0;
             for (String itemName : keySet) {
-                writeSheet(workbook.createSheet(itemName, i++), itemName, data.get(itemName));
+                writeSheet(WORKBOOK.createSheet(itemName), itemName, data.get(itemName));
             }
 
-            workbook.write();
-            workbook.close();
-        } catch (IOException | WriteException e) {
+            FileOutputStream fileOutputStream = new FileOutputStream(file);
+            WORKBOOK.write(fileOutputStream);
+            WORKBOOK.close();
+        } catch (IOException e) {
             e.printStackTrace();
         }
+
+        FirstEnchant.log(Level.INFO, "Dumped enchant info");
     }
 
     static class EnchantmentOutcome {
