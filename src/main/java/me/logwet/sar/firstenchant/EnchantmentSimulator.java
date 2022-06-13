@@ -18,12 +18,12 @@ import jxl.write.Number;
 import jxl.write.WritableSheet;
 import jxl.write.WritableWorkbook;
 import jxl.write.WriteException;
-import net.minecraft.core.Registry;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.registry.Registry;
 import org.jetbrains.annotations.NotNull;
 
 public class EnchantmentSimulator {
@@ -37,7 +37,7 @@ public class EnchantmentSimulator {
         random.setSeed(BASE_ENCHANTMENT_SEED + enchantSlot);
 
         List<SimpleEnchantmentInstance> list =
-                EnchantmentHelper.selectEnchantment(random, itemStack, level, false).stream()
+                EnchantmentHelper.generateEnchantments(random, itemStack, level, false).stream()
                         .map(
                                 enchantmentInstance ->
                                         new SimpleEnchantmentInstance(
@@ -63,7 +63,8 @@ public class EnchantmentSimulator {
 
             for (int id = 0; id < 3; ++id) {
                 costs[id] =
-                        EnchantmentHelper.getEnchantmentCost(random, id, bookshelves, itemStack);
+                        EnchantmentHelper.calculateRequiredExperienceLevel(
+                                random, id, bookshelves, itemStack);
                 if (costs[id] < id + 1) {
                     costs[id] = 0;
                 }
@@ -98,7 +99,7 @@ public class EnchantmentSimulator {
                 new HashMap<>();
 
         Registry.ITEM.stream()
-                .map(Item::getDefaultInstance)
+                .map(Item::getStackForRender)
                 .filter(ItemStack::isEnchantable)
                 .map(EnchantmentSimulator::simulateForItemStack)
                 .forEachOrdered(
@@ -171,7 +172,7 @@ public class EnchantmentSimulator {
                     sheet,
                     0,
                     y,
-                    targetEnchantment.enchantment.getFullname(targetEnchantment.level).getString());
+                    targetEnchantment.enchantment.getName(targetEnchantment.level).getString());
 
             int x = 1;
             for (EnchantmentOutcome enchantmentOutcome : enchantmentOutcomes) {
@@ -179,7 +180,11 @@ public class EnchantmentSimulator {
                         sheet,
                         x,
                         y,
-                        enchantmentOutcome.bookshelves + ", " + enchantmentOutcome.cost + ", " + (enchantmentOutcome.id + 1));
+                        enchantmentOutcome.bookshelves
+                                + ", "
+                                + enchantmentOutcome.cost
+                                + ", "
+                                + (enchantmentOutcome.id + 1));
                 x++;
             }
 
@@ -288,9 +293,9 @@ public class EnchantmentSimulator {
         @Override
         public int compareTo(@NotNull EnchantmentSimulator.SimpleEnchantmentInstance o) {
             return this.enchantment
-                    .getFullname(this.level)
+                    .getName(this.level)
                     .toString()
-                    .compareTo(o.enchantment.getFullname(o.level).toString());
+                    .compareTo(o.enchantment.getName(o.level).toString());
         }
     }
 }
