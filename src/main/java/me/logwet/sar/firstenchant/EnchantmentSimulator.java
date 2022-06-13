@@ -2,6 +2,7 @@ package me.logwet.sar.firstenchant;
 
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -12,15 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
-import jxl.Workbook;
-import jxl.biff.FontRecord;
-import jxl.write.Label;
-import jxl.write.Number;
-import jxl.write.WritableCellFormat;
-import jxl.write.WritableFont;
-import jxl.write.WritableSheet;
-import jxl.write.WritableWorkbook;
-import jxl.write.WriteException;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Registry;
 import net.minecraft.world.item.Item;
@@ -29,10 +21,56 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import org.apache.logging.log4j.Level;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
+import org.apache.poi.xssf.usermodel.IndexedColorMap;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jetbrains.annotations.NotNull;
 
 public class EnchantmentSimulator {
     private static final int BASE_ENCHANTMENT_SEED = 0;
+
+    private static final Workbook WORKBOOK;
+    private static final IndexedColorMap INDEXED_COLOR_MAP;
+    private static final Font DEFAULT_FONT;
+    private static final Font BOLD_FONT;
+    private static final CellStyle DEFAULT_STYLE;
+    private static final CellStyle BOLD_STYLE;
+
+    private static final Map<Integer, CellStyle> COLOUR_STYLE_MAP;
+
+    static {
+        WORKBOOK = new XSSFWorkbook();
+
+        INDEXED_COLOR_MAP = new DefaultIndexedColorMap();
+
+        DEFAULT_FONT = WORKBOOK.createFont();
+        DEFAULT_FONT.setFontName("Arial");
+        DEFAULT_FONT.setFontHeightInPoints((short) 10);
+
+        BOLD_FONT = WORKBOOK.createFont();
+        BOLD_FONT.setFontName("Arial");
+        BOLD_FONT.setFontHeightInPoints((short) 10);
+        BOLD_FONT.setBold(true);
+
+        DEFAULT_STYLE = WORKBOOK.createCellStyle();
+        DEFAULT_STYLE.setFont(DEFAULT_FONT);
+
+        BOLD_STYLE = WORKBOOK.createCellStyle();
+        BOLD_STYLE.setFont(BOLD_FONT);
+
+        COLOUR_STYLE_MAP = new HashMap<>();
+    }
 
     private EnchantmentSimulator() {}
 
@@ -141,54 +179,74 @@ public class EnchantmentSimulator {
         return data;
     }
 
-    private static void writeCell(WritableSheet sheet, int x, int y, String content) {
-        writeCell(sheet, x, y, content, new WritableFont(WritableFont.ARIAL));
+    private static byte[] getContrastColour(byte[] colour) {
+        double y = (299 * colour[0] + 587 * colour[1] + 114 * colour[2]) / 1000D;
+        return y >= 128 ? new byte[] {0, 0, 0} : new byte[] {(byte) 255, (byte) 255, (byte) 255};
     }
 
-    private static void writeCell(
-            WritableSheet sheet, int x, int y, String content, FontRecord font) {
-        WritableCellFormat cellFormat = new WritableCellFormat();
-        cellFormat.setFont(font);
-        writeCell(sheet, x, y, content, cellFormat);
-    }
+    private static CellStyle getStyleByColour(Integer hex) {
+        XSSFCellStyle cellStyle = (XSSFCellStyle) COLOUR_STYLE_MAP.get(hex);
 
-    private static void writeCell(
-            WritableSheet sheet, int x, int y, String content, WritableCellFormat cellFormat) {
-        Label label = new Label(x, y, content, cellFormat);
-        try {
-            sheet.addCell(label);
-        } catch (WriteException e) {
-            e.printStackTrace();
+        if (Objects.isNull(cellStyle)) {
+            byte[] rgb =
+                    new byte[] {
+                        (byte) ((hex & 0xFF0000) >> 16),
+                        (byte) ((hex & 0xFF00) >> 8),
+                        (byte) (hex & 0xFF)
+                    };
+            byte[] textRGB = getContrastColour(rgb);
+
+            XSSFFont font = (XSSFFont) WORKBOOK.createFont();
+            font.setFontName("Arial");
+            font.setFontHeightInPoints((short) 10);
+            font.setColor(
+                    textRGB[0] == 0
+                            ? IndexedColors.BLACK.getIndex()
+                            : IndexedColors.WHITE.getIndex());
+
+            cellStyle = (XSSFCellStyle) WORKBOOK.createCellStyle();
+            cellStyle.setFont(DEFAULT_FONT);
+            cellStyle.setFillForegroundColor(new XSSFColor(rgb, INDEXED_COLOR_MAP));
+            cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            COLOUR_STYLE_MAP.put(hex, cellStyle);
         }
+
+        return cellStyle;
     }
 
-    private static void writeCell(WritableSheet sheet, int x, int y, int content) {
-        Number number = new Number(x, y, content);
-        try {
-            sheet.addCell(number);
-        } catch (WriteException e) {
-            e.printStackTrace();
+    private static void writeCell(Sheet sheet, int x, int y, String content) {
+        writeCell(sheet, x, y, content, DEFAULT_STYLE);
+    }
+
+    private static void writeCell(Sheet sheet, int x, int y, String content, int hex) {
+        CellStyle cellStyle = getStyleByColour(hex);
+        writeCell(sheet, x, y, content, cellStyle);
+    }
+
+    private static void writeCell(Sheet sheet, int x, int y, String content, CellStyle cellStyle) {
+        Row row = sheet.getRow(y);
+        if (Objects.isNull(row)) {
+            row = sheet.createRow(y);
         }
+
+        Cell cell = row.getCell(x);
+        if (Objects.isNull(cell)) {
+            cell = row.createCell(x);
+        }
+
+        cell.setCellValue(content);
+        cell.setCellStyle(cellStyle);
     }
 
     private static void writeSheet(
-            WritableSheet sheet,
+            Sheet sheet,
             String name,
             Map<SimpleEnchantmentInstance, List<EnchantmentOutcome>> data) {
-        sheet.setColumnView(0, 20);
+        sheet.setColumnWidth(0, 20 * 256);
 
-        writeCell(
-                sheet,
-                0,
-                0,
-                "Enchantment:",
-                new WritableFont(WritableFont.ARIAL, 10, WritableFont.BOLD));
-        writeCell(
-                sheet,
-                1,
-                0,
-                "Shelves, Levels, Index",
-                new WritableFont(WritableFont.ARIAL, 10, WritableFont.BOLD));
+        writeCell(sheet, 0, 0, "Enchantment:", BOLD_STYLE);
+        writeCell(sheet, 1, 0, "Shelves, Levels, Index", BOLD_STYLE);
 
         int y = 1;
 
@@ -228,7 +286,7 @@ public class EnchantmentSimulator {
         File directory = new File(Paths.get("").toAbsolutePath().toFile(), "enchantments");
         directory.mkdirs();
         File file =
-                new File(directory, SharedConstants.getCurrentVersion().getName() + ".xls")
+                new File(directory, SharedConstants.getCurrentVersion().getName() + ".xlsx")
                         .getAbsoluteFile();
         if (file.exists()) {
             file.delete();
@@ -238,16 +296,15 @@ public class EnchantmentSimulator {
         Collections.sort(keySet);
 
         try {
-            WritableWorkbook workbook = Workbook.createWorkbook(file);
 
-            int i = 0;
             for (String itemName : keySet) {
-                writeSheet(workbook.createSheet(itemName, i++), itemName, data.get(itemName));
+                writeSheet(WORKBOOK.createSheet(itemName), itemName, data.get(itemName));
             }
 
-            workbook.write();
-            workbook.close();
-        } catch (IOException | WriteException e) {
+            FileOutputStream fileOutputStream = new FileOutputStream(file);
+            WORKBOOK.write(fileOutputStream);
+            WORKBOOK.close();
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
