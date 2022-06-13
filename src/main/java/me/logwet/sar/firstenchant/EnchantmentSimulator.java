@@ -260,6 +260,11 @@ public class EnchantmentSimulator {
 
             int x = 1;
             for (EnchantmentOutcome enchantmentOutcome : enchantmentOutcomes) {
+                int r = (int) Math.round(255 * (enchantmentOutcome.cost - 2) / 28D) << 16;
+                int g = (int) Math.round(255 * enchantmentOutcome.bookshelves / 15D) << 8;
+                int b = (int) Math.round(255 * enchantmentOutcome.id / 2D);
+                int hex = r + g + b;
+
                 writeCell(
                         sheet,
                         x,
@@ -268,7 +273,8 @@ public class EnchantmentSimulator {
                                 + ", "
                                 + enchantmentOutcome.cost
                                 + ", "
-                                + (enchantmentOutcome.id + 1));
+                                + (enchantmentOutcome.id + 1),
+                        getStyleByColour(hex));
                 x++;
             }
 
