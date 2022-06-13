@@ -18,12 +18,14 @@ import jxl.write.Number;
 import jxl.write.WritableSheet;
 import jxl.write.WritableWorkbook;
 import jxl.write.WriteException;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.Registry;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import org.apache.logging.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 
 public class EnchantmentSimulator {
@@ -179,7 +181,11 @@ public class EnchantmentSimulator {
                         sheet,
                         x,
                         y,
-                        enchantmentOutcome.bookshelves + ", " + enchantmentOutcome.cost + ", " + (enchantmentOutcome.id + 1));
+                        enchantmentOutcome.bookshelves
+                                + ", "
+                                + enchantmentOutcome.cost
+                                + ", "
+                                + (enchantmentOutcome.id + 1));
                 x++;
             }
 
@@ -191,7 +197,11 @@ public class EnchantmentSimulator {
         Map<String, Map<SimpleEnchantmentInstance, List<EnchantmentOutcome>>> data =
                 simulateOnAllItems();
 
-        File file = new File(Paths.get("").toAbsolutePath().toFile(), "data.xls").getAbsoluteFile();
+        File directory = new File(Paths.get("").toAbsolutePath().toFile(), "enchantments");
+        directory.mkdirs();
+        File file =
+                new File(directory, SharedConstants.getCurrentVersion().getName() + ".xls")
+                        .getAbsoluteFile();
         if (file.exists()) {
             file.delete();
         }
@@ -212,6 +222,8 @@ public class EnchantmentSimulator {
         } catch (IOException | WriteException e) {
             e.printStackTrace();
         }
+
+        FirstEnchant.log(Level.INFO, "Dumped enchant info");
     }
 
     static class EnchantmentOutcome {
