@@ -13,8 +13,11 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 import jxl.Workbook;
+import jxl.biff.FontRecord;
 import jxl.write.Label;
 import jxl.write.Number;
+import jxl.write.WritableCellFormat;
+import jxl.write.WritableFont;
 import jxl.write.WritableSheet;
 import jxl.write.WritableWorkbook;
 import jxl.write.WriteException;
@@ -139,7 +142,19 @@ public class EnchantmentSimulator {
     }
 
     private static void writeCell(WritableSheet sheet, int x, int y, String content) {
-        Label label = new Label(x, y, content);
+        writeCell(sheet, x, y, content, new WritableFont(WritableFont.ARIAL));
+    }
+
+    private static void writeCell(
+            WritableSheet sheet, int x, int y, String content, FontRecord font) {
+        WritableCellFormat cellFormat = new WritableCellFormat();
+        cellFormat.setFont(font);
+        writeCell(sheet, x, y, content, cellFormat);
+    }
+
+    private static void writeCell(
+            WritableSheet sheet, int x, int y, String content, WritableCellFormat cellFormat) {
+        Label label = new Label(x, y, content, cellFormat);
         try {
             sheet.addCell(label);
         } catch (WriteException e) {
@@ -162,7 +177,20 @@ public class EnchantmentSimulator {
             Map<SimpleEnchantmentInstance, List<EnchantmentOutcome>> data) {
         sheet.setColumnView(0, 20);
 
-        int y = 0;
+        writeCell(
+                sheet,
+                0,
+                0,
+                "Enchantment:",
+                new WritableFont(WritableFont.ARIAL, 10, WritableFont.BOLD));
+        writeCell(
+                sheet,
+                1,
+                0,
+                "Shelves, Levels, Index",
+                new WritableFont(WritableFont.ARIAL, 10, WritableFont.BOLD));
+
+        int y = 1;
 
         List<SimpleEnchantmentInstance> keySet = Lists.newArrayList(data.keySet());
         Collections.sort(keySet);
