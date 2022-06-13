@@ -19,6 +19,7 @@ import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.registry.Registry;
 import org.apache.logging.log4j.Level;
 import org.apache.poi.ss.usermodel.Cell;
@@ -106,7 +107,7 @@ public class EnchantmentSimulator {
 
             for (int id = 0; id < 3; ++id) {
                 costs[id] =
-                        EnchantmentHelper.getEnchantmentCost(random, id, bookshelves, itemStack);
+                        EnchantmentHelper.calculateRequiredExperienceLevel(random, id, bookshelves, itemStack);
                 if (costs[id] < id + 1) {
                     costs[id] = 0;
                 }
@@ -141,7 +142,7 @@ public class EnchantmentSimulator {
                 new HashMap<>();
 
         Registry.ITEM.stream()
-                .map(Item::getDefaultInstance)
+                .map(Item::getStackForRender)
                 .filter(ItemStack::isEnchantable)
                 .map(EnchantmentSimulator::simulateForItemStack)
                 .forEachOrdered(
@@ -180,7 +181,7 @@ public class EnchantmentSimulator {
     }
 
     private static boolean getContrastColour(int r, int g, int b) {
-        return Mth.sqrt(r * r * 0.241 + g * g * 0.691 + b * b * 0.068) > 130;
+        return MathHelper.sqrt(r * r * 0.241 + g * g * 0.691 + b * b * 0.068) > 130;
     }
 
     private static CellStyle getStyleByColour(Integer hex) {
@@ -288,7 +289,7 @@ public class EnchantmentSimulator {
         File directory = new File(Paths.get("").toAbsolutePath().toFile(), "enchantments");
         directory.mkdirs();
         File file =
-                new File(directory, SharedConstants.getCurrentVersion().getName() + ".xlsx")
+                new File(directory, SharedConstants.getGameVersion().getName() + ".xlsx")
                         .getAbsoluteFile();
         if (file.exists()) {
             file.delete();
