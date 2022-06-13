@@ -15,6 +15,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Registry;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -179,34 +180,30 @@ public class EnchantmentSimulator {
         return data;
     }
 
-    private static byte[] getContrastColour(byte[] colour) {
-        double y = (299 * colour[0] + 587 * colour[1] + 114 * colour[2]) / 1000D;
-        return y >= 128 ? new byte[] {0, 0, 0} : new byte[] {(byte) 255, (byte) 255, (byte) 255};
+    private static boolean getContrastColour(int r, int g, int b) {
+        return Mth.sqrt(r * r * 0.241 + g * g * 0.691 + b * b * 0.068) > 130;
     }
 
     private static CellStyle getStyleByColour(Integer hex) {
         XSSFCellStyle cellStyle = (XSSFCellStyle) COLOUR_STYLE_MAP.get(hex);
 
         if (Objects.isNull(cellStyle)) {
-            byte[] rgb =
-                    new byte[] {
-                        (byte) ((hex & 0xFF0000) >> 16),
-                        (byte) ((hex & 0xFF00) >> 8),
-                        (byte) (hex & 0xFF)
-                    };
-            byte[] textRGB = getContrastColour(rgb);
+            int r = ((hex & 0xFF0000) >> 16);
+            int g = ((hex & 0xFF00) >> 8);
+            int b = (hex & 0xFF);
 
             XSSFFont font = (XSSFFont) WORKBOOK.createFont();
             font.setFontName("Arial");
             font.setFontHeightInPoints((short) 10);
             font.setColor(
-                    textRGB[0] == 0
+                    getContrastColour(r, g, b)
                             ? IndexedColors.BLACK.getIndex()
                             : IndexedColors.WHITE.getIndex());
 
             cellStyle = (XSSFCellStyle) WORKBOOK.createCellStyle();
-            cellStyle.setFont(DEFAULT_FONT);
-            cellStyle.setFillForegroundColor(new XSSFColor(rgb, INDEXED_COLOR_MAP));
+            cellStyle.setFont(font);
+            cellStyle.setFillForegroundColor(
+                    new XSSFColor(new byte[] {(byte) r, (byte) g, (byte) b}, INDEXED_COLOR_MAP));
             cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
             COLOUR_STYLE_MAP.put(hex, cellStyle);
